@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
-	"encoding/base64"
 	"encoding/pem"
 	"fmt"
 	"os"
@@ -21,17 +20,21 @@ func NewRsaServer(publickKeyFile, privateKeyFile string) (*RsaServer, error) {
 	if err != nil {
 		return nil, err
 	}
-	var publicByte []byte
+	info, _ := publicFile.Stat()
+	publicByte := make([]byte, info.Size())
 	_, err = publicFile.Read(publicByte)
 	if err != nil {
 		return nil, err
 	}
+
 	privateFile, err := os.Open(privateKeyFile)
+
 	defer privateFile.Close()
 	if err != nil {
 		return nil, err
 	}
-	var privateByte []byte
+	info, _ = privateFile.Stat()
+	privateByte := make([]byte, info.Size())
 	_, err = privateFile.Read(privateByte)
 	if err != nil {
 		return nil, err
@@ -41,7 +44,10 @@ func NewRsaServer(publickKeyFile, privateKeyFile string) (*RsaServer, error) {
 
 func (r *RsaServer) Encrypt(content string) (encryptStr string, err error) {
 	block, _ := pem.Decode(r.publicKey)
-	pubInterface, _ := x509.ParsePKIXPublicKey(block.Bytes)
+	pubInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		return "", err
+	}
 	pub := pubInterface.(*rsa.PublicKey)
 	encryptByte, err := rsa.EncryptPKCS1v15(rand.Reader, pub, []byte(content)) //RSA算法加密
 	if err != nil {
@@ -50,17 +56,19 @@ func (r *RsaServer) Encrypt(content string) (encryptStr string, err error) {
 	if len(encryptByte) == 0 {
 		return "", fmt.Errorf("encrpt failed")
 	}
-	encryptStr = base64.StdEncoding.EncodeToString(encryptByte)
+	encryptStr = string(encryptByte)
 	return
 }
 
 func (r *RsaServer) Decryption(cipherText string) (decryptStr string, err error) {
 	block, _ := pem.Decode(r.privateKey)
-	priInterface, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
 		return "", err
 	}
-	plainText, err := rsa.DecryptPKCS1v15(rand.Reader, priInterface, []byte(cipherText))
+
+	plainText, err := rsa.DecryptPKCS1v15(rand.Reader, privateKey, []byte(cipherText))
+
 	if err != nil {
 		return "", err
 	}
