@@ -1,6 +1,15 @@
-### openssl 生成证书
-1. openssl genrsa -out rsa_private_key.pem 1024
+### openssl 非对称加密
+1. openssl genrsa -out rsa_private_key.pem 2048
 2. openssl rsa -in rsa_private_key.pem -pubout -out rsa_public_key.pem
+
+### openssl 对称加密
+1. 加密 openssl enc -aes-256-ecb -a -in aaa -out bb -k 1234
+2. 解密 openssl enc -aes-256-ecb -d -a -in bbb -out ccc -k 1234
+
+### openssl 证书
+1. openssl genrsa -out ca.key 2048
+2. openssl req -new -nodes -x509 -key ca.key -days 365 -out ca.crt -subj "/C=CN/ST=Hubei/L=Wuhan/O=k8s/OU=systemGroup/CN=kubernetesEA:admin@com" 
+
 
 
 ### cfssl 生成证书
