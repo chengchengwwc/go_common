@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"github.com/cespare/xxhash"
 	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -152,4 +153,116 @@ func (cache *Cache) SetInt(key int64, value []byte, expireSeconds int) (err erro
 	var bKey [8]byte
 	binary.LittleEndian.PutUint64(bKey[:], uint64(key))
 	return cache.Set(bKey[:], value, expireSeconds)
+}
+
+func (cache *Cache) GetInt(key int64) (value []byte, err error) {
+	var bKey [8]byte
+	binary.LittleEndian.PutUint64(bKey[:], uint64(key))
+	return cache.Get(bKey[:])
+}
+
+func (cache *Cache) GetIntWithExpiration(key int64) (value []byte, expireAt uint32, err error) {
+	var bKey [8]byte
+	binary.LittleEndian.PutUint64(bKey[:], uint64(key))
+	return cache.GetWithExpiration(bKey[:])
+}
+
+func (cache *Cache) DelInt(key int64) (affected bool) {
+	var bKey [8]byte
+	binary.LittleEndian.PutUint64(bKey[:], uint64(key))
+	return cache.Del(bKey[:])
+}
+
+func (cache *Cache) EvacuateCount() (count int64) {
+	for i := range cache.segments {
+		count += atomic.LoadInt64(&cache.segments[i].totalEvacuate)
+	}
+	return
+}
+
+func (cache *Cache) ExpiredCount() (count int64) {
+	for i := range cache.segments {
+		count += atomic.LoadInt64(&cache.segments[i].totalExpired)
+	}
+	return
+}
+
+func (cache *Cache) EntryCount() (entryCount int64) {
+	for i := range cache.segments {
+		entryCount += atomic.LoadInt64(&cache.segments[i].entryCount)
+	}
+	return
+}
+
+func (cache *Cache) AverageAccessTime() int64 {
+	var entryCount, totalTime int64
+	for i := range cache.segments {
+		totalTime += atomic.LoadInt64(&cache.segments[i].totalTime)
+		entryCount += atomic.LoadInt64(&cache.segments[i].totalCount)
+	}
+	if entryCount == 0 {
+		return 0
+	} else {
+		return totalTime / entryCount
+	}
+}
+
+func (cache *Cache) HitCount() (count int64) {
+	for i := range cache.segments {
+		count += atomic.LoadInt64(&cache.segments[i].hitCount)
+	}
+	return
+}
+
+func (cache *Cache) MissCount() (count int64) {
+	for i := range cache.segments {
+		count += atomic.LoadInt64(&cache.segments[i].missCount)
+	}
+	return
+}
+
+func (cache *Cache) LookupCount() int64 {
+	return cache.HitCount() + cache.MissCount()
+}
+
+func (cache *Cache) HitRate() float64 {
+	hitCount, missCount := cache.HitCount(), cache.MissCount()
+	lookupCount := hitCount + missCount
+	if lookupCount == 0 {
+		return 0
+	} else {
+		return float64(hitCount) / float64(lookupCount)
+	}
+}
+
+func (cache *Cache) OverwriteCount() (overwriteCount int64) {
+	for i := range cache.segments {
+		overwriteCount += atomic.LoadInt64(&cache.segments[i].overwrites)
+	}
+	return
+}
+
+func (cache *Cache) TouchedCount() (touchedCount int64) {
+	for i := range cache.segments {
+		touchedCount += atomic.LoadInt64(&cache.segments[i].touched)
+	}
+	return
+}
+
+// Clear clears the cache.
+func (cache *Cache) Clear() {
+	for i := range cache.segments {
+		cache.locks[i].Lock()
+		cache.segments[i].clear()
+		cache.locks[i].Unlock()
+	}
+}
+
+// ResetStatistics refreshes the current state of the statistics.
+func (cache *Cache) ResetStatistics() {
+	for i := range cache.segments {
+		cache.locks[i].Lock()
+		cache.segments[i].resetStatistics()
+		cache.locks[i].Unlock()
+	}
 }
