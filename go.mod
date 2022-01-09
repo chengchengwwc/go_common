@@ -3,6 +3,7 @@ module github.com/godofcc/go-common
 go 1.13
 
 require (
+	github.com/cespare/xxhash v1.1.0
 	github.com/go-redis/redis/v7 v7.4.1
 	github.com/pkg/errors v0.8.1
 	go.uber.org/zap v1.19.1
